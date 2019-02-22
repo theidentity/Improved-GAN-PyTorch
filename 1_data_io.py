@@ -104,9 +104,9 @@ class Data_IO():
 
 if __name__ == '__main__':
 
-	dataset_name = 'mnist'
-	# dataset_name = 'cifar10'
-	io = Data_IO(samples_per_class=100,batch_size=50,dataset=dataset_name,unlab_samples_per_class=1000)
+	# dataset_name = 'mnist'
+	dataset_name = 'cifar10'
+	io = Data_IO(samples_per_class=100,batch_size=50,dataset=dataset_name,unlab_samples_per_class=5000)
 
 	dataset = io.get_dataset(split='train',verbose=1)
 	dataset = io.get_dataset(split='valid',verbose=1)

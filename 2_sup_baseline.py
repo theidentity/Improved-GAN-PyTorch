@@ -13,16 +13,17 @@ import helpers
 
 
 class SupervisedClassfier():
-	def __init__(self,samples_per_class,seed,gpu):
+	def __init__(self,samples_per_class,seed,gpu,dataset):
 
 		self.num_classes = 10
 		self.batch_size = 100
 		self.samples_per_class = samples_per_class
-		self.io = data_io.Data_IO(self.samples_per_class,self.batch_size)
+		self.io = data_io.Data_IO(self.samples_per_class,self.batch_size,dataset=dataset)
 		self.lr = 1e-3
 		self.early_stopping_patience = 15
 
-		self.name = 'sup_lab%d_seed%d'%(samples_per_class,seed)
+		self.dataset = dataset
+		self.name = 'sup_lab_%s_%d_seed%d'%(dataset,samples_per_class,seed)
 		self.best_save_path = 'models/%s/best/'%(self.name)
 		self.last_save_path = 'models/%s/last/'%(self.name)
 		self.device = 'cuda:%d'%(gpu)
@@ -32,7 +33,11 @@ class SupervisedClassfier():
 		self.writer = SummaryWriter('logs/%s/'%(self.name))
 
 	def get_model(self):
-		__,D = networks.get_mnist_gan_networks(latent_dim=100,num_classes=self.num_classes)
+
+		if self.dataset == 'mnist':
+			__,D = networks.get_mnist_gan_networks(latent_dim=100,num_classes=self.num_classes)
+		elif self.dataset == 'cifar10':
+			__,D = networks.get_cifar_gan_networks(latent_dim=100,num_classes=self.num_classes)
 		D = D.cuda()
 		return D
 
@@ -156,12 +161,14 @@ if __name__ == '__main__':
 	parser.add_argument('--gpu',default=0)
 	parser.add_argument('--seed',default=42)
 	parser.add_argument('--labels',default=100)
+	parser.add_argument('--dataset',default='mnist')
 	args = parser.parse_args()
 
 	seed = int(args.seed)
 	gpu = int(args.gpu)
 	labels = int(args.labels)
+	dataset = args.dataset
 
-	sup = SupervisedClassfier(samples_per_class=labels,gpu=gpu,seed=seed)
-	sup.train(num_epochs=100)
+	sup = SupervisedClassfier(samples_per_class=labels,gpu=gpu,seed=seed,dataset=dataset)
+	sup.train(num_epochs=200)
 	sup.evaluate(use_saved=False)

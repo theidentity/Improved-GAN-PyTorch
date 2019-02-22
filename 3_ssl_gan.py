@@ -14,17 +14,20 @@ import networks
 
 
 class SSL_GAN():
-	def __init__(self,samples_per_class,seed,gpu):
+	def __init__(self,samples_per_class,seed,gpu,dataset):
 
 		self.num_classes = 10
 		self.latent_dim = 100
 		self.batch_size = 250
 		self.samples_per_class = samples_per_class
-		self.io = data_io.Data_IO(self.samples_per_class,self.batch_size)
+		self.io = data_io.Data_IO(self.samples_per_class,self.batch_size,dataset=dataset,unlab_samples_per_class=5000)
 		self.lr = 1e-3
-		self.early_stopping_patience = 15
+		self.early_stopping_patience = 20
+		# self.early_stopping_patience = 50
+		self.reduce_lr_patience = 9
 
-		self.name = 'ssl_lab%d_seed%d'%(samples_per_class,seed)
+		self.dataset = dataset
+		self.name = 'ssl_lab_%s_%d_seed%d'%(dataset,samples_per_class,seed)
 		self.best_save_path = 'models/%s/best/'%(self.name)
 		self.last_save_path = 'models/%s/last/'%(self.name)
 		self.device = 'cuda:%d'%(gpu)
@@ -36,7 +39,10 @@ class SSL_GAN():
 		self.writer = SummaryWriter(self.log_dir)
 
 	def get_model(self,verbose=0):
-		G,D = networks.get_mnist_gan_networks(latent_dim=self.latent_dim,num_classes=self.num_classes)
+		if self.dataset == 'mnist':
+			G,D = networks.get_mnist_gan_networks(latent_dim=self.latent_dim,num_classes=self.num_classes)
+		elif self.dataset == 'cifar10':
+			G,D = networks.get_cifar_gan_networks(latent_dim=self.latent_dim,num_classes=self.num_classes)
 		G = G.cuda(); D = D.cuda() ;
 		if verbose > 0:
 			print(G);print(D); 
@@ -61,8 +67,8 @@ class SSL_GAN():
 
 		opt_gen = torch.optim.Adam(G.parameters(), lr=self.lr)
 		opt_disc = torch.optim.Adam(D.parameters(), lr=self.lr)
-		scheduler_disc = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_disc, mode='min', factor=0.1, patience=8, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
-		scheduler_gen = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_gen, mode='min', factor=0.1, patience=8, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+		scheduler_disc = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_disc, mode='min', factor=0.1, patience=self.reduce_lr_patience, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+		scheduler_gen = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_gen, mode='min', factor=0.1, patience=self.reduce_lr_patience, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 		max_val_loss = None
 		no_improvement = global_train_step = global_test_step = 0
 		fixed_noise = torch.randn(self.batch_size,self.latent_dim)
@@ -201,12 +207,14 @@ if __name__ == '__main__':
 	parser.add_argument('--gpu',default=0)
 	parser.add_argument('--seed',default=42)
 	parser.add_argument('--labels',default=100)
+	parser.add_argument('--dataset',default='mnist')
 	args = parser.parse_args()
 
 	seed = int(args.seed)
 	gpu = int(args.gpu)
 	labels = int(args.labels)
+	dataset = args.dataset
 
-	ssl = SSL_GAN(samples_per_class=labels,gpu=gpu,seed=seed)
-	ssl.train(num_epochs=100)
+	ssl = SSL_GAN(samples_per_class=labels,gpu=gpu,seed=seed,dataset=dataset)
+	ssl.train(num_epochs=200)
 	ssl.evaluate(use_saved=False)
