@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.functional as F
 import helpers
+from torch.nn.utils import weight_norm
 
 
 def get_cifar_gan_networks(latent_dim,num_classes):
@@ -12,34 +13,34 @@ def get_cifar_gan_networks(latent_dim,num_classes):
             super(Discriminator, self).__init__()
             self.net = nn.Sequential(
                     nn.Dropout(.2),
-                    nn.Conv2d(3,96,3,stride=1,padding=1),
+                    weight_norm(nn.Conv2d(3,96,3,stride=1,padding=1)),
                     nn.LeakyReLU(),
-                    nn.Conv2d(96,96,3,stride=1,padding=1),
+                    weight_norm(nn.Conv2d(96,96,3,stride=1,padding=1)),
                     nn.LeakyReLU(),
-                    nn.Conv2d(96,96,3,stride=2,padding=1),
+                    weight_norm(nn.Conv2d(96,96,3,stride=2,padding=1)),
                     nn.LeakyReLU(),
 
                     nn.Dropout(.5),
-                    nn.Conv2d(96,192,3,stride=1,padding=1),
+                    weight_norm(nn.Conv2d(96,192,3,stride=1,padding=1)),
                     nn.LeakyReLU(),
-                    nn.Conv2d(192,192,3,stride=1,padding=1),
+                    weight_norm(nn.Conv2d(192,192,3,stride=1,padding=1)),
                     nn.LeakyReLU(),
-                    nn.Conv2d(192,192,3,stride=2,padding=1),
+                    weight_norm(nn.Conv2d(192,192,3,stride=2,padding=1)),
                     nn.LeakyReLU(),
                     
                     nn.Dropout(.5),
-                    nn.Conv2d(192,192,3,stride=1,padding=0),
+                    weight_norm(nn.Conv2d(192,192,3,stride=1,padding=0)),
                     nn.LeakyReLU(),
-                    nn.Conv2d(192,192,1,stride=1,padding=0),
+                    weight_norm(nn.Conv2d(192,192,1,stride=1,padding=0)),
                     nn.LeakyReLU(),
-                    nn.Conv2d(192,192,1,stride=1,padding=0),
+                    weight_norm(nn.Conv2d(192,192,1,stride=1,padding=0)),
                     nn.LeakyReLU(),
 
                     nn.MaxPool2d(6,stride=1),
                     helpers.Flatten()
                 )
 
-            self.fc = nn.Linear(192,num_classes)
+            self.fc = weight_norm(nn.Linear(192,num_classes))
             
         def forward(self,x):
             inter_layer = self.net(x)
@@ -51,17 +52,17 @@ def get_cifar_gan_networks(latent_dim,num_classes):
         def __init__(self,latent_dim):
             super(Generator, self).__init__()
             self.net = nn.Sequential(
-                    nn.Linear(latent_dim,512*4*4),
+                    weight_norm(nn.Linear(latent_dim,512*4*4)),
                     nn.BatchNorm1d(512*4*4),
                     nn.ReLU(),
                     helpers.Reshape((512,4,4)),
-                    nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1),
+                    weight_norm(nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1)),
                     nn.BatchNorm2d(256),
                     nn.ReLU(),
-                    nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),
+                    weight_norm(nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1)),
                     nn.BatchNorm2d(128),
                     nn.ReLU(),
-                    nn.ConvTranspose2d(128, 3, 4, stride=2, padding=1),
+                    weight_norm(nn.ConvTranspose2d(128, 3, 4, stride=2, padding=1)),
                     nn.Tanh(),
                 )
 

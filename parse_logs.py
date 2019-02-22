@@ -13,6 +13,7 @@ def parse_txt(path):
 	return acc
 
 def parse_logs(which):
+	print(which)
 	res = []
 	labels = [10,50,100,250,500,750,1000]
 	seeds = [10,42,1337,2019]
@@ -20,7 +21,10 @@ def parse_logs(which):
 	df.index.names = ['labels']
 	for lab in labels:
 		for seed in seeds:
-			acc = parse_txt('metrics/%s_lab%d_seed%d.txt'%(which,lab,seed))
+			try:
+				acc = parse_txt('metrics/%s_lab_cifar10_%d_seed%d.txt'%(which,lab,seed))
+			except:
+				acc = -1
 			df[seed][lab] = acc
 	# res = np.array(res).reshape(-1,4)
 	# print(res)
@@ -55,5 +59,5 @@ def plot_graphs():
 
 if __name__ == '__main__':
 	# parse_logs('sup')
-	# parse_logs('ssl')
-	plot_graphs()
+	parse_logs('ssl')
+	# plot_graphs()
