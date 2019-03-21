@@ -18,7 +18,19 @@
 1000 | 0.9813 ± 0.0010 | 0.9830 ± 0.0012 |
 
 
-![graph](https://raw.githubusercontent.com/theidentity/Improved-GAN-PyTorch/master/graphs/ssl_sup_compare.png "Comparison graph")
+![graph](https://raw.githubusercontent.com/theidentity/Improved-GAN-PyTorch/master/graphs/ssl_sup_compare.png "MNIST Comparison graph")
+
+
+### Results for CIFAR10
+
+| No. of labeled samples per class | Accuracy - SSL GAN | Accuracy - Supervised |
+|:------------:|:------------:|:------------:|
+10 | 0.3430	± 0.0552 | 0.1808 ± 0.0245 |
+250 | 0.6070 ± 0.1061 |0.4288 ± 0.0229 |
+1000 | 0.7655 ±	0.0389 | 0.6500	± 0.0358 |
+
+
+![graph](https://raw.githubusercontent.com/theidentity/Improved-GAN-PyTorch/master/graphs/cifar_ssl_sup_compare.png "CIFAR-10 Comparison graph")
 
 
 ### Use Cases
