@@ -36,7 +36,8 @@ def get_cifar_gan_networks(latent_dim,num_classes):
                     weight_norm(nn.Conv2d(192,192,1,stride=1,padding=0)),
                     nn.LeakyReLU(),
 
-                    nn.MaxPool2d(6,stride=1),
+                    # nn.AvgPool2d(6,stride=1),
+                    nn.AdaptiveAvgPool2d(1),
                     helpers.Flatten()
                 )
 
@@ -52,14 +53,14 @@ def get_cifar_gan_networks(latent_dim,num_classes):
         def __init__(self,latent_dim):
             super(Generator, self).__init__()
             self.net = nn.Sequential(
-                    weight_norm(nn.Linear(latent_dim,512*4*4)),
+                    nn.Linear(latent_dim,512*4*4),
                     nn.BatchNorm1d(512*4*4),
                     nn.ReLU(),
                     helpers.Reshape((512,4,4)),
-                    weight_norm(nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1)),
+                    nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1),
                     nn.BatchNorm2d(256),
                     nn.ReLU(),
-                    weight_norm(nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1)),
+                    nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),
                     nn.BatchNorm2d(128),
                     nn.ReLU(),
                     weight_norm(nn.ConvTranspose2d(128, 3, 4, stride=2, padding=1)),
@@ -71,7 +72,7 @@ def get_cifar_gan_networks(latent_dim,num_classes):
 
     def init_normal(m):
         if type(m) == nn.Linear:
-            nn.init.normal_(m.weight,mean=.0,std=.1)
+            nn.init.normal_(m.weight,mean=.0,std=.05)
             nn.init.constant_(m.bias,.0)
 
         if type(m) == nn.ConvTranspose2d:
@@ -210,16 +211,16 @@ def get_mnist_linear_networks(latent_dim,num_classes):
     return G,D
 
 if __name__ == '__main__':
-    # G,D = get_cifar_gan_networks(latent_dim=100,num_classes=10)
+    G,D = get_cifar_gan_networks(latent_dim=100,num_classes=10)
     # G,D = get_mnist_gan_networks(latent_dim=100,num_classes=10)
 
-    # z = torch.randn(20,100)
-    # print(G(z).shape)
-    # inter_layer,logits = D(G(z))
-    # print(inter_layer.shape)
-    # print(logits.shape)
-    
-    G,D = get_mnist_linear_networks(latent_dim=100,num_classes=10)
     z = torch.randn(20,100)
     print(G(z).shape)
-    print(D(G(z)).shape)
+    inter_layer,logits = D(G(z))
+    print(inter_layer.shape)
+    print(logits.shape)
+    
+    # G,D = get_mnist_linear_networks(latent_dim=100,num_classes=10)
+    # z = torch.randn(20,100)
+    # print(G(z).shape)
+    # print(D(G(z)).shape)

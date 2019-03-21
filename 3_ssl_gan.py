@@ -18,13 +18,13 @@ class SSL_GAN():
 
 		self.num_classes = 10
 		self.latent_dim = 100
-		self.batch_size = 250
+		self.batch_size = 500
 		self.samples_per_class = samples_per_class
 		self.io = data_io.Data_IO(self.samples_per_class,self.batch_size,dataset=dataset,unlab_samples_per_class=5000)
-		self.lr = 1e-3
-		self.early_stopping_patience = 20
-		# self.early_stopping_patience = 50
-		self.reduce_lr_patience = 9
+		self.lr = 0.0003
+		# self.early_stopping_patience = 20
+		self.early_stopping_patience = 1000
+		self.reduce_lr_patience = 1000
 
 		self.dataset = dataset
 		self.name = 'ssl_lab_%s_%d_seed%d'%(dataset,samples_per_class,seed)
@@ -38,7 +38,7 @@ class SSL_GAN():
 		helpers.clear_folder(self.log_dir)
 		self.writer = SummaryWriter(self.log_dir)
 
-	def get_model(self,verbose=0):
+	def get_model(self,verbose=0,resume=False):
 		if self.dataset == 'mnist':
 			G,D = networks.get_mnist_gan_networks(latent_dim=self.latent_dim,num_classes=self.num_classes)
 		elif self.dataset == 'cifar10':
@@ -46,6 +46,11 @@ class SSL_GAN():
 		G = G.cuda(); D = D.cuda() ;
 		if verbose > 0:
 			print(G);print(D); 
+
+		if resume:
+			G.load_state_dict(torch.load(self.last_save_path+'gen.pth'))
+			D.load_state_dict(torch.load(self.last_save_path+'disc.pth'))
+			print('Resuming from last weights')
 		return G,D
 
 
@@ -53,23 +58,26 @@ class SSL_GAN():
 		assert split in ('all_train','lab_train','test','valid')
 		return self.io.get_dataloader(split=split)
 
-	def train(self,num_epochs):
-		G,D = self.get_model()
+	def train(self,num_epochs,resume=False):
+		G,D = self.get_model(resume=resume)
 		all_train_loader = self.get_dataloader(split='all_train')
 		train_loader = self.get_dataloader(split='lab_train')
 		lab_train_loader = self.io.create_infinite_dataloader(train_loader)
 		valid_loader = self.get_dataloader(split='valid')
-		helpers.clear_folder(self.best_save_path)
-		helpers.clear_folder(self.last_save_path)
+		if not resume:
+			helpers.clear_folder(self.best_save_path)
+			helpers.clear_folder(self.last_save_path)
 
 		XE = nn.CrossEntropyLoss().cuda()
-		MSE = nn.MSELoss().cuda()
 
 		opt_gen = torch.optim.Adam(G.parameters(), lr=self.lr)
 		opt_disc = torch.optim.Adam(D.parameters(), lr=self.lr)
-		scheduler_disc = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_disc, mode='min', factor=0.1, patience=self.reduce_lr_patience, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
-		scheduler_gen = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_gen, mode='min', factor=0.1, patience=self.reduce_lr_patience, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+		scheduler_disc = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_disc, mode='min', factor=0.5, patience=self.reduce_lr_patience, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+		scheduler_gen = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_gen, mode='min', factor=0.5, patience=self.reduce_lr_patience, verbose=True, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+		# scheduler_disc = torch.optim.lr_scheduler.ExponentialLR(opt_disc,gamma=.999,last_epoch=-1)
+		# scheduler_gen = torch.optim.lr_scheduler.ReduceLROnPlateau(opt_gen,gamma=.999,last_epoch=-1)
 		max_val_loss = None
+		max_val_acc = None
 		no_improvement = global_train_step = global_test_step = 0
 		fixed_noise = torch.randn(self.batch_size,self.latent_dim)
 
@@ -102,6 +110,7 @@ class SSL_GAN():
 
 				# Train Generator
 				opt_gen.zero_grad()
+				opt_disc.zero_grad()
 				gen_inp = G(z)
 				layer_fake, __ = D(gen_inp)
 				layer_real, __ = D(unl)
@@ -144,17 +153,24 @@ class SSL_GAN():
 
 			if max_val_loss is None:
 				max_val_loss = val_loss + 1
+			if max_val_acc is None:
+				max_val_acc = acc - 1  
 			
 			no_improvement += 1
-			if val_loss < max_val_loss:
+			if val_loss < max_val_loss or acc > max_val_acc:
 				no_improvement = 0
-				max_val_loss = val_loss
-				print('Best model updated - Loss reduced to :',max_val_loss)
+				if val_loss < max_val_loss:
+					max_val_loss = val_loss
+					print('Best model updated - Loss reduced to :',max_val_loss)
+				elif acc > max_val_acc:
+					max_val_acc = acc
+					print('Best model updated - Val acc improved to :',acc)
+
 				torch.save(D.state_dict(), self.best_save_path+'disc.pth')
 				torch.save(G.state_dict(), self.best_save_path+'gen.pth')
 
-				torch.save(D.state_dict(), self.last_save_path+'disc.pth')
-				torch.save(G.state_dict(), self.last_save_path+'gen.pth')
+			torch.save(D.state_dict(), self.last_save_path+'disc.pth')
+			torch.save(G.state_dict(), self.last_save_path+'gen.pth')
 
 			if no_improvement > self.early_stopping_patience:
 				print('Early Stopping')
@@ -206,8 +222,9 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--gpu',default=0)
 	parser.add_argument('--seed',default=42)
-	parser.add_argument('--labels',default=100)
-	parser.add_argument('--dataset',default='mnist')
+	parser.add_argument('--labels',default=1000)
+	# parser.add_argument('--dataset',default='mnist')
+	parser.add_argument('--dataset',default='cifar10')
 	args = parser.parse_args()
 
 	seed = int(args.seed)
@@ -216,5 +233,9 @@ if __name__ == '__main__':
 	dataset = args.dataset
 
 	ssl = SSL_GAN(samples_per_class=labels,gpu=gpu,seed=seed,dataset=dataset)
-	ssl.train(num_epochs=200)
+	# ssl.train(num_epochs=1200,resume=False)
 	ssl.evaluate(use_saved=False)
+
+	# 1000 labels CIFAR-10 20.24 +/- 2.17
+	# Min Acc reqd : 77.59
+	
